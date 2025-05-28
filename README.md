@@ -54,6 +54,36 @@ MindMint bridges the gap between mental wellness and blockchain technology by:
 - **NFT Collection**: Build a personal gallery of meaningful moments
 - **Achievement System**: Unlock milestones and special rewards
 
+## 📱 App Preview - First Prototype
+
+Get a glimpse of MindMint's intuitive interface and seamless blockchain integration:
+
+<div align="center">
+
+### 🏠 Home Dashboard & Journal Entry
+<img src="assets/image1.jpg" alt="MindMint Home Dashboard" width="300"/>
+
+*Clean, modern interface showcasing daily journaling prompts, mood tracking, and streak counters*
+
+### 💎 NFT Minting & Wallet Integration  
+<img src="assets/image2.jpg" alt="NFT Minting Interface" width="300"/>
+
+*Real Solana wallet connectivity with intuitive NFT creation from meaningful journal entries*
+
+### 📊 Progress Tracking & Analytics
+<img src="assets/image3.jpg" alt="Analytics Dashboard" width="300"/>
+
+*Comprehensive mood analytics and progress visualization with gamified elements*
+
+</div>
+
+**Key Features Demonstrated:**
+- ✅ **Seamless UX**: Complex blockchain operations made simple
+- ✅ **Real Wallet Integration**: Actual Phantom/Solflare connectivity  
+- ✅ **Live Data**: Real-time mood tracking and streak management
+- ✅ **Modern UI**: Gen Z-focused design with intuitive navigation
+- ✅ **Gamification**: Visual progress indicators and achievement system
+
 ## 🛠️ Technology Stack
 
 ### Frontend
@@ -164,7 +194,7 @@ MindMint/
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/mindmint.git
+git clone https://github.com/DishankChauhan/MindMint
 cd mindmint
 
 # Install dependencies
