@@ -9,48 +9,71 @@ export const CONFIG = {
     // Use SQLite for local development and offline-first functionality
     SQLITE_ENABLED: true,
     
-    // PostgreSQL for cloud deployment (optional)
-    POSTGRESQL_ENABLED: false,
+    // PostgreSQL for cloud deployment (disabled in React Native to avoid import issues)
+    POSTGRESQL_ENABLED: false, // Disabled for React Native compatibility
     POSTGRESQL_CONFIG: {
-      host: process.env.POSTGRES_HOST || 'localhost',
-      port: parseInt(process.env.POSTGRES_PORT || '5432'),
-      database: process.env.POSTGRES_DB || 'mindmint',
-      username: process.env.POSTGRES_USER || 'postgres',
-      password: process.env.POSTGRES_PASSWORD || '',
-      ssl: process.env.NODE_ENV === 'production',
+      host: 'localhost',
+      port: 5432,
+      database: 'mindmint',
+      user: process.env.USER || 'postgres', // Use current user for local dev
+      password: '', // No password for local development
+      ssl: false,
     },
   },
   
   // Solana configuration
   SOLANA: {
     ENABLED: true,
-    NETWORK: __DEV__ ? 'devnet' : 'mainnet-beta',
-    RPC_URL: __DEV__ 
-      ? 'https://api.devnet.solana.com'
-      : 'https://api.mainnet-beta.solana.com',
+    NETWORK: 'devnet' as 'devnet' | 'mainnet-beta',
+    RPC_URL: 'https://api.devnet.solana.com',
+    // Wallet adapter configuration
+    WALLET: {
+      CLUSTER: 'devnet',
+    },
+  },
+  
+  // NFT Minting configuration
+  NFT: {
+    ENABLED: true, // Enable real NFT minting
+    METADATA: {
+      SYMBOL: 'MIND',
+      EXTERNAL_URL: 'https://mindmint.app',
+      COLLECTION_NAME: 'MindMint Journal Entries',
+      CREATOR_ADDRESS: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+    },
   },
   
   // Notifications
   NOTIFICATIONS: {
     DEFAULT_TIME: '20:00', // 8 PM
     ENABLED: true,
+    REMINDER_MESSAGES: [
+      "Time to reflect on your day 🌅",
+      "Your mindfulness moment awaits ✨",
+      "Ready to earn some clarity points? 📝",
+    ],
   },
   
   // Points system
   CLARITY_POINTS: {
     DAILY_ENTRY: 10,
     MOOD_TRACKING: 5,
+    STREAK_BONUS_MULTIPLIER: 2,
     NFT_MINTING: 20,
-    STREAK_3_DAYS: 15,
-    STREAK_7_DAYS: 50,
-    STREAK_30_DAYS: 200,
+    WEEKLY_GOAL: 70,
   },
   
   // Development flags
   DEV: {
-    ENABLE_LOGGING: __DEV__,
-    ENABLE_DEBUG_MENU: __DEV__,
-    BYPASS_AUTH: __DEV__, // Skip wallet connection in dev mode
+    MOCK_WALLET: false, // Disable mock wallet - use real wallet
+    MOCK_NFT_MINTING: false, // Disable mock NFT minting - use real minting
+    ENABLE_LOGGING: true,
+  },
+  
+  // App navigation
+  NAVIGATION: {
+    INITIAL_ROUTE: 'Home',
+    TAB_ROUTES: ['Home', 'History', 'Profile'],
   },
 };
 

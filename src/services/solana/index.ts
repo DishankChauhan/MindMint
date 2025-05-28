@@ -1,214 +1,260 @@
-import { Connection, PublicKey, Keypair, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { createMint, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { JournalEntry, NFTMetadata } from '../../types';
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  SystemProgram,
+  LAMPORTS_PER_SOL,
+  Keypair,
+} from '@solana/web3.js';
+import {
+  createMint,
+  createAccount,
+  mintTo,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
+import { walletService } from '../wallet';
+import { CONFIG } from '../../config';
+import { JournalEntry } from '../../types';
 
-// Solana configuration
-const SOLANA_RPC_URL = __DEV__ ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com';
-const SOLANA_NETWORK = __DEV__ ? 'devnet' : 'mainnet-beta';
+export interface NFTMintResult {
+  nftAddress: string;
+  transactionSignature: string;
+  metadataUri: string;
+}
 
-class SolanaService {
+export interface IPFSMetadata {
+  name: string;
+  description: string;
+  image: string;
+  attributes: Array<{
+    trait_type: string;
+    value: string | number;
+  }>;
+  properties: {
+    category: string;
+    creators: Array<{
+      address: string;
+      share: number;
+    }>;
+  };
+}
+
+class RealSolanaService {
   private connection: Connection;
 
   constructor() {
-    this.connection = new Connection(SOLANA_RPC_URL, 'confirmed');
+    this.connection = walletService.getConnection();
   }
 
-  // Check connection to Solana network
-  async checkConnection(): Promise<boolean> {
-    try {
-      const version = await this.connection.getVersion();
-      console.log('Connected to Solana', SOLANA_NETWORK, 'version:', version);
-      return true;
-    } catch (error) {
-      console.error('Failed to connect to Solana:', error);
-      return false;
-    }
+  // Upload metadata to IPFS (mock implementation for now)
+  private async uploadToIPFS(metadata: IPFSMetadata): Promise<string> {
+    // In production, this would upload to IPFS via services like Pinata, NFT.Storage, etc.
+    // For now, we'll return a mock URI
+    const mockUri = `https://mockipfs.com/metadata/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.json`;
+    console.log('📤 Uploading metadata to IPFS (mock):', mockUri);
+    console.log('📝 Metadata:', metadata);
+    return mockUri;
   }
 
-  // Get SOL balance for a wallet
-  async getBalance(publicKey: string): Promise<number> {
-    try {
-      const pubKey = new PublicKey(publicKey);
-      const balance = await this.connection.getBalance(pubKey);
-      return balance / LAMPORTS_PER_SOL;
-    } catch (error) {
-      console.error('Error getting balance:', error);
-      throw error;
-    }
-  }
+  // Create NFT metadata for journal entry
+  private createNFTMetadata(entry: JournalEntry, userWallet: string): IPFSMetadata {
+    const moodEmojis: { [key: string]: string } = {
+      happy: '😊',
+      sad: '😢',
+      calm: '😌',
+      anxious: '😰',
+      excited: '🤩',
+      tired: '😴',
+      grateful: '🙏',
+      angry: '😠',
+    };
 
-  // Request airdrop for devnet testing
-  async requestAirdrop(publicKey: string, amount: number = 1): Promise<string> {
-    if (SOLANA_NETWORK !== 'devnet') {
-      throw new Error('Airdrop only available on devnet');
-    }
+    const entryDate = new Date(entry.createdAt).toLocaleDateString();
+    const entryPreview = entry.content.length > 100 
+      ? entry.content.substring(0, 100) + '...' 
+      : entry.content;
 
-    try {
-      const pubKey = new PublicKey(publicKey);
-      const signature = await this.connection.requestAirdrop(
-        pubKey,
-        amount * LAMPORTS_PER_SOL
-      );
-      
-      await this.connection.confirmTransaction(signature);
-      console.log('Airdrop successful:', signature);
-      return signature;
-    } catch (error) {
-      console.error('Error requesting airdrop:', error);
-      throw error;
-    }
-  }
-
-  // Generate NFT metadata from journal entry
-  generateNFTMetadata(entry: JournalEntry): NFTMetadata {
-    const date = entry.createdAt.toLocaleDateString();
-    const moodEmoji = this.getMoodEmoji(entry.mood);
-    
     return {
-      name: `MindMint Entry – ${date}`,
-      description: `A tokenized moment of reflection from ${date}. ${entry.content.substring(0, 100)}${entry.content.length > 100 ? '...' : ''}`,
-      image: this.generateMoodImage(entry.mood),
+      name: `MindMint Journal - ${entryDate}`,
+      description: `A mindfulness journal entry minted as an NFT. "${entryPreview}" Mood: ${entry.mood} ${moodEmojis[entry.mood] || '🌟'}`,
+      image: `https://mindmint.app/api/journal-image/${entry.id}`, // Would generate dynamic image
       attributes: [
         {
           trait_type: 'Mood',
           value: entry.mood,
         },
         {
-          trait_type: 'Mood Emoji',
-          value: moodEmoji,
-        },
-        {
           trait_type: 'Clarity Points',
           value: entry.clarityPoints,
         },
         {
-          trait_type: 'Date',
-          value: date,
+          trait_type: 'Entry Date',
+          value: entryDate,
         },
         {
           trait_type: 'Word Count',
           value: entry.content.split(' ').length,
         },
-        {
-          trait_type: 'Entry Type',
-          value: 'Daily Journal',
-        },
-        {
-          trait_type: 'Network',
-          value: SOLANA_NETWORK,
-        },
       ],
+      properties: {
+        category: 'Journal Entry',
+        creators: [
+          {
+            address: userWallet,
+            share: 85,
+          },
+          {
+            address: CONFIG.NFT.METADATA.CREATOR_ADDRESS,
+            share: 15,
+          },
+        ],
+      },
     };
   }
 
-  // Upload metadata to IPFS (using a service like Pinata or NFT.Storage)
-  async uploadMetadata(metadata: NFTMetadata): Promise<string> {
-    try {
-      // For MVP, we'll simulate metadata upload
-      // In production, integrate with IPFS services like:
-      // - NFT.Storage (free for NFTs)
-      // - Pinata
-      // - Arweave via Bundlr
-      
-      console.log('Uploading metadata to IPFS...');
-      console.log('Metadata:', JSON.stringify(metadata, null, 2));
-      
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Generate a realistic IPFS hash
-      const mockHash = 'QmYjtig7VJQ6XsnUjqqJvj7QaMcCAwtrgNdahSiFofrE7o';
-      const metadataUri = `https://ipfs.io/ipfs/${mockHash}`;
-      
-      console.log('Metadata uploaded to:', metadataUri);
-      return metadataUri;
-    } catch (error) {
-      console.error('Error uploading metadata:', error);
-      throw new Error('Failed to upload metadata to IPFS');
-    }
-  }
+  // Create a simple SPL Token as NFT (without complex metadata for now)
+  private async createSimpleNFT(walletKeypair: Keypair): Promise<{ mint: PublicKey; tokenAccount: PublicKey; signature: string }> {
+    console.log('🪙 Creating simple NFT mint...');
 
-  // Create a simple NFT token using SPL Token
-  async createSimpleNFT(
-    payerKeypair: Keypair,
-    metadataUri: string,
-    journalEntry: JournalEntry
-  ): Promise<{ mintAddress: string; tokenAccount: string; signature: string }> {
     try {
-      console.log('Creating SPL Token NFT...');
-      
       // Create a new mint with 0 decimals (NFT standard)
       const mint = await createMint(
         this.connection,
-        payerKeypair,
-        payerKeypair.publicKey, // Mint authority
-        payerKeypair.publicKey, // Freeze authority (optional)
-        0 // 0 decimals for NFT
+        walletKeypair, // payer
+        walletKeypair.publicKey, // mintAuthority
+        walletKeypair.publicKey, // freezeAuthority
+        0 // decimals (0 for NFTs)
       );
 
-      console.log('Mint created:', mint.toString());
+      console.log('✅ NFT mint created:', mint.toString());
 
-      // Get or create associated token account for the owner
-      const tokenAccount = await getOrCreateAssociatedTokenAccount(
+      // Create token account for the NFT
+      const tokenAccount = await createAccount(
         this.connection,
-        payerKeypair,
-        mint,
-        payerKeypair.publicKey
+        walletKeypair, // payer
+        mint, // mint
+        walletKeypair.publicKey // owner
       );
 
-      console.log('Token account:', tokenAccount.address.toString());
+      console.log('✅ Token account created:', tokenAccount.toString());
 
-      // Mint exactly 1 token to the token account (NFT = supply of 1)
+      // Mint 1 token (quantity for NFT)
       const signature = await mintTo(
         this.connection,
-        payerKeypair,
-        mint,
-        tokenAccount.address,
-        payerKeypair.publicKey,
-        1 // Mint exactly 1 token
+        walletKeypair, // payer
+        mint, // mint
+        tokenAccount, // destination
+        walletKeypair.publicKey, // authority
+        1 // amount (1 for NFT)
       );
 
-      console.log('NFT minted successfully!');
-      console.log('Transaction signature:', signature);
+      console.log('✅ NFT token minted, signature:', signature);
 
-      return {
-        mintAddress: mint.toString(),
-        tokenAccount: tokenAccount.address.toString(),
-        signature,
-      };
+      return { mint, tokenAccount, signature };
     } catch (error) {
-      console.error('Error creating NFT:', error);
-      throw new Error('Failed to create NFT on Solana');
+      console.error('❌ Error creating simple NFT:', error);
+      throw new Error('Failed to create NFT');
     }
   }
 
-  // Complete NFT minting process
-  async mintJournalEntryNFT(
-    entry: JournalEntry,
-    walletKeypair: Keypair
-  ): Promise<{ nftAddress: string; transactionSignature: string; metadataUri: string }> {
+  // Get wallet keypair for signing (using the current connected wallet)
+  private getWalletKeypair(): Keypair {
+    const walletAdapter = walletService.getCurrentWallet();
+    if (!walletAdapter) {
+      throw new Error('Wallet not connected');
+    }
+
+    // For now, we'll use the connected keypair from wallet service
+    // In production, this would use the actual wallet's signing capability
+    const walletService_: any = walletService as any;
+    if (!walletService_.connectedKeypair) {
+      throw new Error('Wallet keypair not available');
+    }
+
+    return walletService_.connectedKeypair;
+  }
+
+  // Main NFT minting function
+  async mintJournalEntryAsNFT(entry: JournalEntry): Promise<NFTMintResult> {
+    if (!CONFIG.NFT.ENABLED) {
+      throw new Error('NFT minting is disabled');
+    }
+
+    const wallet = walletService.getCurrentWallet();
+    if (!wallet?.publicKey) {
+      throw new Error('Wallet not connected');
+    }
+
+    console.log('🎯 Starting NFT minting process for entry:', entry.id);
+
     try {
-      console.log('Starting NFT minting process for entry:', entry.id);
+      // 1. Create NFT metadata
+      const metadata = this.createNFTMetadata(entry, wallet.publicKey.toString());
       
-      // Step 1: Generate metadata
-      const metadata = this.generateNFTMetadata(entry);
+      // 2. Upload metadata to IPFS
+      const metadataUri = await this.uploadToIPFS(metadata);
       
-      // Step 2: Upload metadata to IPFS
-      const metadataUri = await this.uploadMetadata(metadata);
+      // 3. Get wallet keypair for signing
+      const walletKeypair = this.getWalletKeypair();
       
-      // Step 3: Create NFT on Solana
-      const nftResult = await this.createSimpleNFT(walletKeypair, metadataUri, entry);
+      // 4. Create simple NFT (SPL Token with 0 decimals)
+      const nftResult = await this.createSimpleNFT(walletKeypair);
+
+      const result: NFTMintResult = {
+        nftAddress: nftResult.mint.toString(),
+        transactionSignature: nftResult.signature,
+        metadataUri: metadataUri,
+      };
+
+      console.log('🎉 NFT minting completed successfully!');
+      console.log('📍 NFT Address:', result.nftAddress);
+      console.log('📝 Transaction:', result.transactionSignature);
+      console.log('🔗 Metadata URI:', result.metadataUri);
+
+      return result;
+    } catch (error) {
+      console.error('❌ NFT minting failed:', error);
+      throw new Error(`Failed to mint NFT: ${error}`);
+    }
+  }
+
+  // Get NFT details
+  async getNFTDetails(nftAddress: string): Promise<any> {
+    try {
+      const mint = new PublicKey(nftAddress);
       
-      console.log('NFT minting completed successfully!');
+      // Get mint info
+      const mintInfo = await this.connection.getParsedAccountInfo(mint);
       
       return {
-        nftAddress: nftResult.mintAddress,
-        transactionSignature: nftResult.signature,
-        metadataUri,
+        mint: nftAddress,
+        mintInfo: mintInfo.value,
       };
     } catch (error) {
-      console.error('Error in NFT minting process:', error);
-      throw error;
+      console.error('Error getting NFT details:', error);
+      throw new Error('Failed to get NFT details');
+    }
+  }
+
+  // Check if wallet has enough SOL for minting
+  async checkMintingCosts(): Promise<{ hasEnoughSOL: boolean; estimatedCost: number; currentBalance: number }> {
+    const wallet = walletService.getCurrentWallet();
+    if (!wallet?.publicKey) {
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      const balance = await walletService.getBalance();
+      const estimatedCost = 0.01; // ~0.01 SOL for minting costs
+      
+      return {
+        hasEnoughSOL: balance >= estimatedCost,
+        estimatedCost,
+        currentBalance: balance,
+      };
+    } catch (error) {
+      console.error('Error checking minting costs:', error);
+      throw new Error('Failed to check minting costs');
     }
   }
 
@@ -218,7 +264,7 @@ class SolanaService {
       const mint = new PublicKey(nftMintAddress);
       const owner = new PublicKey(ownerPublicKey);
       
-      // Get the associated token account for this owner and mint
+      // Get token accounts for this owner and mint
       const tokenAccounts = await this.connection.getTokenAccountsByOwner(owner, {
         mint: mint
       });
@@ -238,87 +284,14 @@ class SolanaService {
     }
   }
 
-  // Get transaction details
-  async getTransactionDetails(signature: string): Promise<any> {
-    try {
-      const transaction = await this.connection.getTransaction(signature, {
-        commitment: 'confirmed'
-      });
-
-      if (!transaction) {
-        throw new Error('Transaction not found');
-      }
-
-      return {
-        signature,
-        timestamp: transaction.blockTime ? new Date(transaction.blockTime * 1000).toISOString() : null,
-        status: transaction.meta?.err ? 'failed' : 'confirmed',
-        fee: transaction.meta?.fee || 0,
-        slot: transaction.slot,
-      };
-    } catch (error) {
-      console.error('Error getting transaction details:', error);
-      throw error;
-    }
-  }
-
-  // Generate a new Solana keypair
-  static generateKeypair(): Keypair {
-    return Keypair.generate();
-  }
-
-  // Get public key from private key
-  static getKeypairFromSecretKey(secretKey: Uint8Array): Keypair {
-    return Keypair.fromSecretKey(secretKey);
-  }
-
-  // Validate Solana address
-  static isValidSolanaAddress(address: string): boolean {
-    try {
-      new PublicKey(address);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  // Helper methods
-  private getMoodEmoji(mood: string): string {
-    const moodEmojis: { [key: string]: string } = {
-      happy: '😊',
-      sad: '😢',
-      calm: '😌',
-      anxious: '😰',
-      excited: '🤩',
-      tired: '😴',
-      grateful: '🙏',
-      angry: '😠',
+  // Get network information
+  getNetworkInfo(): { network: string; rpcUrl: string } {
+    return {
+      network: CONFIG.SOLANA.NETWORK,
+      rpcUrl: CONFIG.SOLANA.RPC_URL,
     };
-    return moodEmojis[mood] || '😐';
-  }
-
-  private generateMoodImage(mood: string): string {
-    // In production, you could:
-    // 1. Generate unique artwork using AI (DALL-E, Midjourney API)
-    // 2. Use pre-designed mood-based templates
-    // 3. Create generative art based on entry content
-    
-    const baseUrl = 'https://via.placeholder.com/500x500';
-    const colors: { [key: string]: string } = {
-      happy: 'FFD700',
-      sad: '87CEEB',
-      calm: '98FB98',
-      anxious: 'FFA07A',
-      excited: 'FF69B4',
-      tired: '9370DB',
-      grateful: 'F0E68C',
-      angry: 'FF6347',
-    };
-    
-    const color = colors[mood] || 'CCCCCC';
-    const emoji = encodeURIComponent(this.getMoodEmoji(mood));
-    return `${baseUrl}/${color}/FFFFFF?text=${emoji}`;
   }
 }
 
-export const solanaService = new SolanaService(); 
+// Export singleton instance
+export const solanaService = new RealSolanaService(); 

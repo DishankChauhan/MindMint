@@ -1,4 +1,5 @@
-import { Pool, PoolClient } from 'pg';
+// Conditional import to avoid React Native import issues
+// import { Pool, PoolClient } from 'pg';
 import { JournalEntry, User, DBJournalEntry, DBUser, UserPreferences, MoodType } from '../../types';
 
 // PostgreSQL connection configuration
@@ -12,14 +13,36 @@ interface PostgreSQLConfig {
 }
 
 class PostgreSQLService {
-  private pool: Pool | null = null;
+  private pool: any = null;
   private config: PostgreSQLConfig | null = null;
+  private pgModule: any = null;
+
+  // Dynamically import pg module when needed
+  private async importPg() {
+    if (!this.pgModule) {
+      try {
+        // This will only work in Node.js environments, not React Native
+        this.pgModule = require('pg');
+      } catch (error) {
+        throw new Error('PostgreSQL is not available in React Native environment. Use this service only in Node.js backend.');
+      }
+    }
+    return this.pgModule;
+  }
 
   // Initialize with configuration
   async init(config: PostgreSQLConfig): Promise<void> {
+    // Skip PostgreSQL initialization in React Native
+    if (typeof window !== 'undefined' || typeof navigator !== 'undefined') {
+      console.warn('PostgreSQL service is not available in React Native. Skipping initialization.');
+      return;
+    }
+
     try {
+      const pg = await this.importPg();
+      
       this.config = config;
-      this.pool = new Pool({
+      this.pool = new pg.Pool({
         host: config.host,
         port: config.port,
         database: config.database,
@@ -45,8 +68,17 @@ class PostgreSQLService {
     }
   }
 
+  // Helper method to check if we're in a React Native environment
+  private isReactNative(): boolean {
+    return typeof window !== 'undefined' || typeof navigator !== 'undefined';
+  }
+
   // Create database tables
   private async createTables(): Promise<void> {
+    if (this.isReactNative()) {
+      throw new Error('PostgreSQL operations not available in React Native');
+    }
+    
     if (!this.pool) throw new Error('Database not initialized');
 
     const client = await this.pool.connect();
@@ -120,6 +152,10 @@ class PostgreSQLService {
 
   // User operations
   async createUser(userData: Omit<User, 'id' | 'createdAt'>): Promise<User> {
+    if (this.isReactNative()) {
+      throw new Error('PostgreSQL operations not available in React Native');
+    }
+    
     if (!this.pool) throw new Error('Database not initialized');
 
     const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -156,6 +192,10 @@ class PostgreSQLService {
   }
 
   async getUser(id: string): Promise<User | null> {
+    if (this.isReactNative()) {
+      throw new Error('PostgreSQL operations not available in React Native');
+    }
+    
     if (!this.pool) throw new Error('Database not initialized');
 
     const client = await this.pool.connect();
@@ -174,6 +214,10 @@ class PostgreSQLService {
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<void> {
+    if (this.isReactNative()) {
+      throw new Error('PostgreSQL operations not available in React Native');
+    }
+    
     if (!this.pool) throw new Error('Database not initialized');
 
     const setClause = [];
@@ -222,6 +266,10 @@ class PostgreSQLService {
 
   // Journal entry operations
   async createJournalEntry(entryData: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>): Promise<JournalEntry> {
+    if (this.isReactNative()) {
+      throw new Error('PostgreSQL operations not available in React Native');
+    }
+    
     if (!this.pool) throw new Error('Database not initialized');
 
     const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -261,6 +309,10 @@ class PostgreSQLService {
   }
 
   async getJournalEntries(userId: string, limit?: number): Promise<JournalEntry[]> {
+    if (this.isReactNative()) {
+      throw new Error('PostgreSQL operations not available in React Native');
+    }
+    
     if (!this.pool) throw new Error('Database not initialized');
 
     const client = await this.pool.connect();
@@ -282,6 +334,10 @@ class PostgreSQLService {
   }
 
   async updateJournalEntry(id: string, updates: Partial<JournalEntry>): Promise<void> {
+    if (this.isReactNative()) {
+      throw new Error('PostgreSQL operations not available in React Native');
+    }
+    
     if (!this.pool) throw new Error('Database not initialized');
 
     const setClause = [];
@@ -333,6 +389,10 @@ class PostgreSQLService {
   }
 
   async deleteJournalEntry(id: string): Promise<void> {
+    if (this.isReactNative()) {
+      throw new Error('PostgreSQL operations not available in React Native');
+    }
+    
     if (!this.pool) throw new Error('Database not initialized');
 
     const client = await this.pool.connect();
@@ -344,6 +404,10 @@ class PostgreSQLService {
   }
 
   async getUnsyncedEntries(userId: string): Promise<JournalEntry[]> {
+    if (this.isReactNative()) {
+      throw new Error('PostgreSQL operations not available in React Native');
+    }
+    
     if (!this.pool) throw new Error('Database not initialized');
 
     const client = await this.pool.connect();
@@ -361,6 +425,10 @@ class PostgreSQLService {
 
   // Analytics queries
   async getMoodDistribution(userId: string, days?: number): Promise<{ [key: string]: number }> {
+    if (this.isReactNative()) {
+      throw new Error('PostgreSQL operations not available in React Native');
+    }
+    
     if (!this.pool) throw new Error('Database not initialized');
 
     const client = await this.pool.connect();
@@ -381,7 +449,7 @@ class PostgreSQLService {
       const result = await client.query(query, params);
       
       const distribution: { [key: string]: number } = {};
-      result.rows.forEach(row => {
+      result.rows.forEach((row: any) => {
         distribution[row.mood] = parseInt(row.count);
       });
 
@@ -393,6 +461,10 @@ class PostgreSQLService {
 
   // Utility methods
   async checkConnection(): Promise<boolean> {
+    if (this.isReactNative()) {
+      return false;
+    }
+    
     if (!this.pool) return false;
 
     try {
